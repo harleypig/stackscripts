@@ -83,6 +83,11 @@ LOGFILE='/root/minimal_arch_stackscript.log'
   setup_fail2ban
 
   #############################################################################
+  hr 'Setting up sudoers so wheel group can sudo ...'
+
+  setup_sudoers
+
+  #############################################################################
   hr 'Setting up an non-privileged user and sudo ...'
 
   useradd -m -g users -G wheel "$USERNAME"
@@ -90,11 +95,6 @@ LOGFILE='/root/minimal_arch_stackscript.log'
 $USERPASS
 $USERPASS
 EOF
-
-  #############################################################################
-  hr 'Setting up sudoers so wheel group can sudo ...'
-
-  setup_sudoers
 
   #############################################################################
   hr 'Setting up sshd ...'
@@ -109,7 +109,7 @@ EOF
   #############################################################################
   hr 'Installing basic packages ...'
 
-  pacman -Sy --noconfirm git pacutils rsync
+  pacman -Sy --noconfirm git pacutils
 
   #############################################################################
   hr 'Install aconfmgr ...'

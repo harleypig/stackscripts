@@ -83,20 +83,23 @@ function setup_ssh() {
 
   SSH_DIR="/home/$USERNAME/.ssh"
 
+  mkdir -p "$SSH_DIR" || {
+    echo "Unable to create $SSH_DIR"
+    return 1
+  }
+
   if [ -n "$USERPUBKEY" ]; then
     sed -i 's/^[# ]*PubkeyAuthentication \(yes\|no\)/PubkeyAuthentication yes/' /etc/ssh/sshd_config
-    mkdir -p "$SSH_DIR"
-    echo "$USERPUBKEY" >> "/home/$USERNAME/.ssh/authorized_keys"
-    chown -R "$USERNAME" "/home/$USERNAME/.ssh"
-    chmod 0700 "$SSH_DIR"
+    echo "$USERPUBKEY" >> "$SSH_DIR/authorized_keys"
   fi
 
   if [ -n "$ALTPUBKEY" ]; then
     GH_KEY="https://github.com/$ALTPUBKEY.keys"
-    mkdir -p "$SSH_DIR"
-    curl "${GH_KEY}" >> "$SSH_DIR/.ssh/authorized_keys"
-    chown -R "$USERNAME" "$SSH_DIR"
+    curl "$GH_KEY" >> "$SSH_DIR/authorized_keys"
   fi
+
+  chown -R "$USERNAME". "$SSH_DIR"
+  chmod 0700 "$SSH_DIR"
 
   systemctl restart sshd
 }
@@ -130,7 +133,7 @@ function setup_ntp() {
 # Returns: result of cat (in this case, always success)
 
 function setup_reflector() {
-  pacman -Sy --noconfirm reflector
+  pacman -Sy --noconfirm reflector rsync
   reflector --protocol https --threads 10 --latest 10 --sort rate --save /etc/pacman.d/mirrorlist
 
   #----------------------------------------------------------------------------
@@ -158,14 +161,16 @@ EOF
 function setup_ufw() {
   pacman -S --noconfirm ufw
 
+  hr 'Enable and start ufw'
   systemctl start ufw
   systemctl enable ufw
+  yes | ufw enable
 
+  hr 'Set rules for ufw'
   ufw default deny
   ufw allow ssh
 
-  yes | ufw enable
-
+  hr 'ufw status'
   ufw status
 }
 
@@ -185,5 +190,5 @@ function setup_aconfmgr() {
   install -D -m644 -t "/usr/lib/aconfmgr" "src/"*
   install -D -m644 -t "/usr/share/doc/aconfmgr" "README.md"
   install -D -m644 -t "/usr/share/man/man1" "aconfmgr.1"
-  install -D -m644 -t "/usr/share/licenses/aconfmgr" license.txt
+  #install -D -m644 -t "/usr/share/licenses/aconfmgr" license.txt
 }
