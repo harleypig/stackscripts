@@ -1,0 +1,215 @@
+#!/bin/bash
+
+# Stolen and massaged from https://www.linode.com/stackscripts/view/12580
+# Also stole some interesting stuff from stackscript 12938.
+
+#############################################################################
+# Variables from user input.
+
+# <UDF name="username" label="Unprivileged user name" example="This will be the user who will be able to SSH into the server." />
+# <UDF name="userpass" label="Unprivileged user password" />
+# <UDF name="userpubkey" label="Public key for the user" default="" example="Should look like 'ssh-rsa AAABBB1x2y3z...'" />
+# <UDF name="altpubkey" label="Pulls your public key from github using your github username https://github.com/$USERNAME.keys" />
+# <UDF name="nopass" label="Disable password authentication for SSH?" oneof="Yes,No" default="Yes" />
+# <UDF name="sshport" label="SSH port" default="22" example="It is a good idea to set this to something other than the default of 22."/>
+# <UDF name="locale" label="Locale" default="en_US.UTF-8 UTF-8" />
+# <UDF name="hostname" label="Host name" example="This is the name of your server."/>
+
+#############################################################################
+# Abstract - StackScript description
+
+: << ABSTRACT
+Minimal Arch Linux
+
+Setup hostname, locale, timezone, reflector (including hook for upgrades), ntp
+Update system to latest
+Setup firewall (ufw), fail2ban, user, sudoers, sshd
+Tweak system settings
+Install basic packages: git pacutils aconfmgr
+ABSTRACT
+
+#############################################################################
+# Functions
+
+hr() {
+  printf '=%.0s' {1..40}
+
+  echo
+
+  [[ $# -gt 0 ]] && {
+    echo "$*"
+    echo
+  }
+}
+
+#############################################################################
+LOGFILE='/root/minimal_arch_stackscript.log'
+
+{
+  #############################################################################
+  hr 'Starting minimal installation for Arch Linux on Linode ...'
+
+  #hr "Redirecting output to $LOGFILE. This will take some time ..."
+
+  #exec > $LOGFILE 2>&1
+  #exec 2>&1 2>&1 | tee $LOGFILE
+
+  #############################################################################
+  hr 'Set up the hostname ...'
+
+  hostnamectl set-hostname "$HOSTNAME"
+
+  #############################################################################
+  hr 'Set the locale ...'
+
+  localectl set-locale LANG="$LOCALE"
+  locale-gen
+
+  #############################################################################
+  hr 'Set up the correct TZ (correct being my timezone) ...'
+
+  timedatectl set-timezone 'MST7MDT'
+
+  #############################################################################
+  hr 'Installing ntp ...'
+
+  pacman -S --nconfirm ntp
+  systemctl enable ntpd.service
+  timedatectl set-ntp 1
+
+  #############################################################################
+  hr 'Update and optimize mirrorlist for pacman ...'
+
+  pacman -Sy --noconfirm reflector
+  reflector --protocol https --threads 10 --latest 10 --sort rate --save /etc/pacman.d/mirrorlist
+
+  #----------------------------------------------------------------------------
+  hr 'Adding hook to refresh mirror list whenever an upgrade is performed ...'
+
+  mkdir /etc/pacman.d/hooks
+  cat << 'EOF' >> /etc/pacman.d/hooks/mirrorupgrade.hook
+[Trigger]
+Operation = Upgrade
+Type = Package
+Target = pacman-mirrorlist
+
+[Action]
+Description = Updating pacman-mirrorlist with reflector and removing pacnew...
+When = PostTransaction
+Depends = reflector
+Exec = /usr/bin/env sh -c "reflector --country 'United States' --latest 200 --age 24 --sort rate --save /etc/pacman.d/mirrorlist; if [[ -f /etc/pacman.d/mirrorlist.pacnew ]]; then rm /etc/pacman.d/mirrorlist.pacnew; fi"
+EOF
+
+  #############################################################################
+  hr 'Update system ...'
+
+  pacman -Syyu --noconfirm
+
+  #############################################################################
+  hr 'Set up ufw firewall ...
+!!! Dont forget to "ufw allow" other ports as needed.
+'
+  pacman -S --noconfirm ufw
+  ufw default deny
+  ufw allow ssh
+  systemctl enable ufw
+  yes | ufw enable
+
+  #############################################################################
+  hr 'Setting up fail2ban ...'
+
+  pacman -S --noconfirm fail2ban
+  cp /etc/fail2ban/fail2ban.conf /etc/fail2ban/fail2ban.local
+  cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+  systemctl start fail2ban
+  systemctl enable fail2ban
+
+  #############################################################################
+  hr 'Setting up an non-privileged user and sudo ...'
+
+  useradd -m -g users -G wheel "$USERNAME"
+  passwd "$USERNAME" << EOF
+$USERPASS
+$USERPASS
+EOF
+
+  #############################################################################
+  hr 'Setting up sudoers so wheel group can sudo ...'
+
+  sed -i 's/# %wheel ALL=(ALL) ALL/%wheel ALL=(ALL) ALL/' /etc/sudoers
+
+  # Don't want to put up with that lecture when I don't have to.
+  LECTURED="/var/db/sudo/lectured/$USERNAME"
+  touch "$LECTURED"
+  chown root.users "$LECTURED"
+
+  #############################################################################
+  hr 'Setting up sshd ...'
+
+  #   disable root login, ensure SSH2, set up password auth, and allow the
+  #   unprivileged user to login
+
+  sed -i 's/^[# ]*PermitRootLogin \(yes\|no\)/PermitRootLogin no/' /etc/ssh/sshd_config
+  #sed -i "s/^[# ]*Port [0-9]\+/Port $SSHPORT/" /etc/ssh/sshd_config
+  sed -i 's/^[# ]*Protocol \([0-9],\?\)\+/Protocol 2/' /etc/ssh/sshd_config
+
+  [[ $NOPASS == 'Yes' ]] && sed -i 's/^[# ]*PasswordAuthentication \(yes\|no\)/PasswordAuthentication no/' /etc/ssh/sshd_config
+
+  # Allow only the unprivileged user to log on
+  echo "AllowUsers $USERNAME" >> /etc/ssh/sshd_config
+
+  SSH_DIR="/home/$USERNAME/.ssh"
+
+  if [ -n "$USERPUBKEY" ]; then
+    sed -i 's/^[# ]*PubkeyAuthentication \(yes\|no\)/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+    mkdir -p "$SSH_DIR"
+    echo "$USERPUBKEY" >> "/home/$USERNAME/.ssh/authorized_keys"
+    chown -R "$USERNAME" "/home/$USERNAME/.ssh"
+    chmod 0700 "$SSH_DIR"
+  fi
+
+  if [ -n "$ALTPUBKEY" ]; then
+    GH_KEY="https://github.com/$ALTPUBKEY.keys"
+    mkdir -p "$SSH_DIR"
+    curl "${GH_KEY}" >> "$SSH_DIR/.ssh/authorized_keys"
+    chown -R "$USERNAME" "$SSH_DIR"
+  fi
+
+  systemctl restart sshd
+
+  #############################################################################
+  hr 'Tweak system settings ...'
+
+  cat << EOT > /etc/sysctl.conf
+net.core.default_qdisc=fq
+net.ipv4.tcp_congestion_control=bbr
+net.ipv4.tcp_syncookies = 1
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv4.conf.default.accept_source_route = 0
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv4.conf.all.secure_redirects = 1
+net.ipv4.conf.default.secure_redirects = 1
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+net.ipv4.icmp_ignore_bogus_error_responses = 1
+net.ipv4.ip_forward = 1
+EOT
+
+  sysctl --system
+
+  #############################################################################
+  hr 'Installing basic packages ...'
+
+  pacman -Sy --noconfirm git pacutils
+
+  #############################################################################
+  hr 'Manually install aconfmgr ...'
+  #############################################################################
+  hr 'Dont forget to add maintenance hooks:
+pacman-cache-hooks
+systemd-boot-pacman-hook
+'
+
+} 2>&1 | tee $LOGFILE

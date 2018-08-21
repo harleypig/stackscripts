@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# linode-stackscript -a update -d archlinux -p true -D 'Minimal Arch Linux: wheel group can sudo; reflector, ufw, git installed; system tweaked' -c minimal_arch -l minimal_arch '
+
+distro='Arch Linux'
+name='minimal_arch'
+
+filename="./$name"
+
+[[ -f $filename ]] || {
+  echo "$filename is not a file"
+  exit 1
+}
+
+declare -a lsopt
+
+lsopt=('--label' "$name")
+lsopt+=('--distribution' "$distro")
+lsopt+=('--codefile' "$filename")
+lsopt+=('--ispublic' 'true')
+lsopt+=('--description' '')
+
+# parse description from ABSTRACT section of stackscript

@@ -1,0 +1,8 @@
+#!/bin/bash
+
+#        label new-label distribution codefile ispublic description revnote
+# create x               x            x        x        x           x
+# update x     x         x            x        x        x           x
+# delete x
+
+
