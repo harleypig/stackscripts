@@ -2,8 +2,9 @@
 
 # linode-stackscript -a update -d archlinux -p true -D 'Minimal Arch Linux: wheel group can sudo; reflector, ufw, git installed; system tweaked' -c minimal_arch -l minimal_arch '
 
+stackscriptid="335947"
 distro='Arch Linux'
-name='minimal_arch'
+name='arch_bash_library'
 
 filename="./$name"
 
@@ -13,15 +14,13 @@ filename="./$name"
 }
 
 # parse description from ABSTRACT section of stackscript
-description="
-Minimal Arch Linux
 
-Setup hostname, locale, timezone, reflector (including hook for upgrades), ntp
-Update system to latest
-Setup firewall (ufw), fail2ban, user, sudoers, sshd
-Tweak system settings
-Install basic packages: git pacutils aconfmgr
-"
+description="This does nothing by itself. This is a library of functions I am
+using in my 'mininal_arch' stackscript. You are welcome to use it.
+
+Source this in your arch stackscript by doing the following:
+
+  source <ssinclude StackScriptID='$stackscriptid'>"
 
 declare -a lsopt
 
@@ -29,6 +28,7 @@ lsopt=('--label' "$name")
 lsopt+=('--distribution' "$distro")
 lsopt+=('--codefile' "$filename")
 lsopt+=('--ispublic' 'true')
+#lsopt+=('--description' "'$description'")
 lsopt+=('--description')
 
 # shellcheck disable=SC2068

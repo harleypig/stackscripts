@@ -1,0 +1,189 @@
+#!/bin/bash
+
+#############################################################################
+# Hide more complex bash calls so main script can look pretty.
+
+#############################################################################
+# Prints a simple '=' line and an optional message
+
+hr() {
+  printf '=%.0s' {1..40}
+
+  echo
+
+  [[ $# -gt 0 ]] && {
+    echo "$*"
+    echo
+  }
+}
+
+#############################################################################
+# Make some linode specific sysctl settings
+
+# Please do not blindly use these settings. Find out what each does and decide
+# if these do what you want.
+
+# Expects: Nothing
+# Returns: Result of sysctl --system call
+
+function system_tweak() {
+  cat << EOT > /etc/sysctl.conf
+net.core.default_qdisc=fq
+net.ipv4.tcp_congestion_control=bbr
+net.ipv4.tcp_syncookies = 1
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv4.conf.default.accept_source_route = 0
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv4.conf.all.secure_redirects = 1
+net.ipv4.conf.default.secure_redirects = 1
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+net.ipv4.icmp_ignore_bogus_error_responses = 1
+net.ipv4.ip_forward = 1
+EOT
+
+  sysctl --system
+}
+
+#############################################################################
+# Make wheel group able to sudo
+
+# Expects: USERNAME to be set
+# Returns: success in all cases.
+
+function setup_sudoers() {
+  sed -i 's/# %wheel ALL=(ALL) ALL/%wheel ALL=(ALL) ALL/' /etc/sudoers
+
+  # Don't want to put up with that lecture when I don't have to.
+  LECTURED="/var/db/sudo/lectured/$USERNAME"
+  touch "$LECTURED"
+  chown root.users "$LECTURED"
+}
+
+#############################################################################
+# Setup ssh
+
+# disable root login, ensure SSH2, set up password auth, and allow the
+# unprivileged user to login if desired
+
+# Expects: the following variables to have already been setup.
+#          USERNAME USERPUBKEY (optional) ALTPUBKEY (optional)
+
+function setup_ssh() {
+  sed -i 's/^[# ]*PermitRootLogin \(yes\|no\)/PermitRootLogin no/' /etc/ssh/sshd_config
+  #sed -i "s/^[# ]*Port [0-9]\+/Port $SSHPORT/" /etc/ssh/sshd_config
+  sed -i 's/^[# ]*Protocol \([0-9],\?\)\+/Protocol 2/' /etc/ssh/sshd_config
+
+  [[ $NOPASS == 'Yes' ]] && sed -i 's/^[# ]*PasswordAuthentication \(yes\|no\)/PasswordAuthentication no/' /etc/ssh/sshd_config
+
+  # Allow only the unprivileged user to log on
+  echo "AllowUsers $USERNAME" >> /etc/ssh/sshd_config
+
+  SSH_DIR="/home/$USERNAME/.ssh"
+
+  if [ -n "$USERPUBKEY" ]; then
+    sed -i 's/^[# ]*PubkeyAuthentication \(yes\|no\)/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+    mkdir -p "$SSH_DIR"
+    echo "$USERPUBKEY" >> "/home/$USERNAME/.ssh/authorized_keys"
+    chown -R "$USERNAME" "/home/$USERNAME/.ssh"
+    chmod 0700 "$SSH_DIR"
+  fi
+
+  if [ -n "$ALTPUBKEY" ]; then
+    GH_KEY="https://github.com/$ALTPUBKEY.keys"
+    mkdir -p "$SSH_DIR"
+    curl "${GH_KEY}" >> "$SSH_DIR/.ssh/authorized_keys"
+    chown -R "$USERNAME" "$SSH_DIR"
+  fi
+
+  systemctl restart sshd
+}
+
+#############################################################################
+# Expects: nothing
+# Returns: result of systemctl enable call
+
+function setup_fail2ban() {
+  pacman -S --noconfirm fail2ban
+
+  cp /etc/fail2ban/fail2ban.conf /etc/fail2ban/fail2ban.local
+  cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+
+  systemctl start fail2ban
+  systemctl enable fail2ban
+}
+
+#############################################################################
+# Expects: nothing
+# Returns: result of timedatectl call.
+
+function setup_ntp() {
+  pacman -S --noconfirm ntp
+  systemctl enable ntpd.service
+  timedatectl set-ntp 1
+}
+
+#############################################################################
+# Expects: nothing
+# Returns: result of cat (in this case, always success)
+
+function setup_reflector() {
+  pacman -Sy --noconfirm reflector
+  reflector --protocol https --threads 10 --latest 10 --sort rate --save /etc/pacman.d/mirrorlist
+
+  #----------------------------------------------------------------------------
+  hr 'Adding hook to refresh mirror list whenever an upgrade is performed ...'
+
+  mkdir /etc/pacman.d/hooks
+  cat << 'EOF' >> /etc/pacman.d/hooks/mirrorupgrade.hook
+[Trigger]
+Operation = Upgrade
+Type = Package
+Target = pacman-mirrorlist
+
+[Action]
+Description = Updating pacman-mirrorlist with reflector and removing pacnew...
+When = PostTransaction
+Depends = reflector
+Exec = /usr/bin/env sh -c "reflector --country 'United States' --latest 200 --age 24 --sort rate --save /etc/pacman.d/mirrorlist; [[ -f /etc/pacman.d/mirrorlist.pacnew ]] && rm /etc/pacman.d/mirrorlist.pacnew"
+EOF
+}
+
+#############################################################################
+# Expects: nothing
+# Returns: result of ufw call
+
+function setup_ufw() {
+  pacman -S --noconfirm ufw
+
+  systemctl start ufw
+  systemctl enable ufw
+
+  ufw default deny
+  ufw allow ssh
+
+  yes | ufw enable
+
+  ufw status
+}
+
+#############################################################################
+# Expects: nothing
+# Returns:
+
+function setup_aconfmgr() {
+  git clone https://github.com/CyberShadow/aconfmgr.git
+
+  cd aconfmgr || {
+    echo "Unable to change to aconfmgr directory."
+    return 1
+  }
+
+  install -D -m755 -t "/usr/bin" "aconfmgr"
+  install -D -m644 -t "/usr/lib/aconfmgr" "src/"*
+  install -D -m644 -t "/usr/share/doc/aconfmgr" "README.md"
+  install -D -m644 -t "/usr/share/man/man1" "aconfmgr.1"
+  install -D -m644 -t "/usr/share/licenses/aconfmgr" license.txt
+}
