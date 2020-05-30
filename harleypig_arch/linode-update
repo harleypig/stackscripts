@@ -5,9 +5,8 @@
   exit 1
 }
 
-stackscriptid="335947"
 distro='Arch Linux'
-name='arch_bash_library'
+name='harleypig_arch'
 
 filename="./$name"
 
@@ -17,13 +16,7 @@ filename="./$name"
 }
 
 # parse description from ABSTRACT section of stackscript
-
-description="This does nothing by itself. This is a library of functions I am
-using in my 'mininal_arch' stackscript. You are welcome to use it.
-
-Source this in your arch stackscript by doing the following:
-
-  source <ssinclude StackScriptID='$stackscriptid'>"
+description="$(awk '/: << ABSTRACT/{flag=1; next} /ABSTRACT/{flag=0} flag' $filename)"
 
 declare -a lsopt
 

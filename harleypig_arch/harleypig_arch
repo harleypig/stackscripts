@@ -1,0 +1,133 @@
+#!/bin/bash
+
+# Stolen and massaged from https://www.linode.com/stackscripts/view/12580
+# Also stole some interesting stuff from stackscript 12938.
+
+#############################################################################
+# Variables from user input.
+
+# <UDF name="username" label="Unprivileged user name" example="This will be the user who will be able to SSH into the server." />
+# <UDF name="userpass" label="Unprivileged user password" />
+# <UDF name="userpubkey" label="Public key for the user" default="" example="Should look like 'ssh-rsa AAABBB1x2y3z...'" />
+# <UDF name="altpubkey" label="Pulls your public key from github using your github username https://github.com/$USERNAME.keys" />
+# <UDF name="nopass" label="Disable password authentication for SSH?" oneof="Yes,No" default="Yes" />
+# <UDF name="sshport" label="SSH port" default="22" example="It is a good idea to set this to something other than the default of 22."/>
+# <UDF name="locale" label="Locale" default="en_US.UTF-8 UTF-8" />
+# <UDF name="hostname" label="Host name" example="This is the name of your server."/>
+
+#############################################################################
+# Abstract - StackScript description
+
+: << ABSTRACT
+HarleyPig's Arch Linux
+
+What I use to setup my base linode.
+
+Setup hostname, locale, timezone, reflector (including hook for upgrades), ntp
+Update system to latest
+Setup firewall (ufw), fail2ban, user, sudoers, sshd
+Tweak system settings
+Install basic packages: git pacutils aconfmgr docker
+ABSTRACT
+
+#############################################################################
+# Source utility script
+
+source <ssinclude StackScriptID="335947">
+
+#############################################################################
+LOGFILE='/root/minimal_arch_stackscript.log'
+
+{
+  hr 'Starting minimal installation for Arch Linux on Linode ...'
+
+  #############################################################################
+  hr 'Set up the hostname ...'
+
+  hostnamectl set-hostname "$HOSTNAME"
+
+  #############################################################################
+  hr 'Set the locale ...'
+
+  localectl set-locale LANG="$LOCALE"
+  locale-gen
+
+  #############################################################################
+  hr 'Set up the correct TZ (correct being my timezone) ...'
+
+  timedatectl set-timezone 'MST7MDT'
+
+  #############################################################################
+  hr 'Installing ntp ...'
+
+  setup_ntp
+
+  #############################################################################
+  hr 'Update and optimize mirrorlist for pacman ...'
+
+  setup_reflector
+
+  #############################################################################
+  hr 'Update system ...'
+
+  pacman -Syyu --noconfirm
+
+  #############################################################################
+  hr 'Set up ufw firewall ...
+!!! Dont forget to "ufw allow" other ports as needed.
+'
+
+  setup_ufw
+
+  #############################################################################
+  hr 'Setting up fail2ban ...'
+
+  setup_fail2ban
+
+  #############################################################################
+  hr 'Setting up sudoers so wheel group can sudo ...'
+
+  setup_sudoers
+
+  #############################################################################
+  hr 'Setting up an non-privileged user and sudo ...'
+
+  useradd -m -g users -G wheel "$USERNAME"
+  passwd "$USERNAME" << EOF
+$USERPASS
+$USERPASS
+EOF
+
+  #############################################################################
+  hr 'Setting up sshd ...'
+
+  setup_ssh
+
+  #############################################################################
+  hr 'Tweak system settings ...'
+
+  system_tweak
+
+  #############################################################################
+  hr 'Installing basic packages ...'
+
+  pacman -Sy --noconfirm git pacutils
+
+  #############################################################################
+  hr 'Install aconfmgr ...'
+
+  setup_aconfmgr
+
+  #############################################################################
+  hr 'Dont forget to add maintenance hooks:
+pacman-cache-hooks
+systemd-boot-pacman-hook
+'
+
+  #############################################################################
+  hr 'Install and start docker ...'
+
+  pacman -S docker
+  systemctl enable docker
+  systemctl start docker
+} 2>&1 | tee $LOGFILE

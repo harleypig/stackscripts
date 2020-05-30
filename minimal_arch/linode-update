@@ -1,6 +1,9 @@
 #!/bin/bash
 
-# linode-stackscript -a update -d archlinux -p true -D 'Minimal Arch Linux: wheel group can sudo; reflector, ufw, git installed; system tweaked' -c minimal_arch -l minimal_arch '
+[[ -x $(command -v linode-stackscript 2> /dev/null) ]] || {
+  echo "This script depends on linode-stackscript and it is not available." >&2
+  exit 1
+}
 
 distro='Arch Linux'
 name='minimal_arch'
@@ -13,15 +16,7 @@ filename="./$name"
 }
 
 # parse description from ABSTRACT section of stackscript
-description="
-Minimal Arch Linux
-
-Setup hostname, locale, timezone, reflector (including hook for upgrades), ntp
-Update system to latest
-Setup firewall (ufw), fail2ban, user, sudoers, sshd
-Tweak system settings
-Install basic packages: git pacutils aconfmgr
-"
+description="$(awk '/: << ABSTRACT/{flag=1; next} /ABSTRACT/{flag=0} flag' $filename)"
 
 declare -a lsopt
 
