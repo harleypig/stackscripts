@@ -4,6 +4,20 @@
 # Hide more complex bash calls so main script can look pretty.
 
 #############################################################################
+# Abstract - StackScript description
+
+# SCRIPTID: 335947
+
+: << ABSTRACT
+This does nothing by itself. This is a library of functions I am
+using in my linode stackscripts. You are welcome to use it.
+
+Source this in your arch stackscript by doing the following:
+
+  source <ssinclude StackScriptID='335947'>
+ABSTRACT
+
+#############################################################################
 # Prints a simple '=' line and an optional message
 
 hr() {

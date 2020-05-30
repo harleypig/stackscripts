@@ -1,0 +1,59 @@
+#!/bin/bash
+
+# linode-cli stackscripts create
+# Create StackScript
+#.
+# Arguments:
+#   --label: (required) The StackScript's label is for display purposes only.
+#   --images: (required) An array of Image IDs.
+#   --script: (required) The script to execute when provisioning a new Linode with this StackScript.
+#   --description: A description for the StackScript.
+#   --is_public: This determines whether other users can use your StackScript.
+#   --rev_note: This field allows you to add notes for the set of revisions made to this StackScript.
+
+# linode-cli stackscripts update [STACKSCRIPTID]
+# Update StackScript
+#.
+# Arguments:
+#   --label: The StackScript's label is for display purposes only.
+#   --description: A description for the StackScript.
+#   --images: An array of Image IDs.
+#   --is_public: This determines whether other users can use your StackScript.
+#   --rev_note: This field allows you to add notes for the set of revisions made to this StackScript.
+#   --script: The script to execute when provisioning a new Linode with this StackScript.
+
+[[ -x $(command -v linode-cli 2> /dev/null) ]] || {
+  echo "This script depends on linode-cli and it is not available." >&2
+  exit 1
+}
+
+(($#)) || {
+  echo "Must pass the name of the script you want to update." >&2
+  exit 1
+}
+
+name="$1"
+
+filename="$name/$name"
+
+[[ -r $filename ]] || {
+  echo "$filename is not a file or is not accessible"
+  exit 1
+}
+
+distro='Arch Linux'
+
+# parse description from ABSTRACT section of stackscript
+description="$(awk '/: << ABSTRACT/{flag=1; next} /ABSTRACT/{flag=0} flag' "$filename")"
+
+declare -a lcopt
+
+lcopt=('stackscripts')
+lcopt=('--label' "$name")
+lcopt+=('--distribution' "$distro")
+lcopt+=('--script' "$filename")
+lcopt+=('--is_public' 'true')
+lcopt+=('--description' "$description")
+
+# shellcheck disable=SC2068
+linode-stackscript -a update ${lcopt[@]}

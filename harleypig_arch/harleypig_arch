@@ -18,6 +18,8 @@
 #############################################################################
 # Abstract - StackScript description
 
+# SCRIPTID:
+
 : << ABSTRACT
 HarleyPig's Arch Linux
 

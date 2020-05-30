@@ -18,6 +18,8 @@
 #############################################################################
 # Abstract - StackScript description
 
+# SCRIPTID: 71751
+
 : << ABSTRACT
 Minimal Arch Linux
 
