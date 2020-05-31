@@ -1,27 +1,6 @@
 #!/bin/bash
 
-# linode-cli stackscripts create
-# Create StackScript
-#.
-# Arguments:
-#   --label: (required) The StackScript's label is for display purposes only.
-#   --images: (required) An array of Image IDs.
-#   --script: (required) The script to execute when provisioning a new Linode with this StackScript.
-#   --description: A description for the StackScript.
-#   --is_public: This determines whether other users can use your StackScript.
-#   --rev_note: This field allows you to add notes for the set of revisions made to this StackScript.
-
-# linode-cli stackscripts update [STACKSCRIPTID]
-# Update StackScript
-#.
-# Arguments:
-#   --label: The StackScript's label is for display purposes only.
-#   --description: A description for the StackScript.
-#   --images: An array of Image IDs.
-#   --is_public: This determines whether other users can use your StackScript.
-#   --rev_note: This field allows you to add notes for the set of revisions made to this StackScript.
-#   --script: The script to execute when provisioning a new Linode with this StackScript.
-
+#-----------------------------------------------------------------------------
 [[ -x $(command -v linode-cli 2> /dev/null) ]] || {
   echo "This script depends on linode-cli and it is not available." >&2
   exit 1
@@ -34,26 +13,50 @@
 
 name="$1"
 
-filename="$name/$name"
+#-----------------------------------------------------------------------------
+filename="scripts/$name"
 
 [[ -r $filename ]] || {
   echo "$filename is not a file or is not accessible"
   exit 1
 }
 
-distro='Arch Linux'
+#-----------------------------------------------------------------------------
+# determine action
+# if scriptid exists in file, we're updating
+# otherwise we're creating
+# The format is '# scriptid: ###'
+# Nothing else is allowed on this line, spaces are ignored.
 
+rx='^[[:space:]]*#[[:space:]]*scriptid:[[:space:]]*[[:digit:]]+[[:space:]]*$'
+scriptid="$(grep -Ei "$rx" "$filename" | awk '{print $3}')"
+
+action='create'
+[[ -n $scriptid ]] && action='update'
+
+#-----------------------------------------------------------------------------
+distro="$(linode-cli images list --label 'Arch Linux' --text --no-headers | cut -f 1)"
+
+#-----------------------------------------------------------------------------
 # parse description from ABSTRACT section of stackscript
 description="$(awk '/: << ABSTRACT/{flag=1; next} /ABSTRACT/{flag=0} flag' "$filename")"
 
+[[ -z $description ]] && {
+  echo "Could not find description in $filename"
+  exit 1
+}
+
+#-----------------------------------------------------------------------------
 declare -a lcopt
 
-lcopt=('stackscripts')
-lcopt=('--label' "$name")
-lcopt+=('--distribution' "$distro")
-lcopt+=('--script' "$filename")
+lcopt+=('stackscripts')
+lcopt+=("$action")
+[[ -n $scriptid ]] && lcopt+=("$scriptid")
+lcopt+=('--label' "$name")
+lcopt+=('--images' "$distro")
 lcopt+=('--is_public' 'true')
+lcopt+=('--script' "$(< "$filename")")
 lcopt+=('--description' "$description")
 
-# shellcheck disable=SC2068
-linode-stackscript -a update ${lcopt[@]}
+((DEBUG)) && echo linode-cli "${lcopt[@]}"
+linode-cli "${lcopt[@]}"

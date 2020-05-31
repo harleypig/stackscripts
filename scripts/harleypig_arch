@@ -18,7 +18,7 @@
 #############################################################################
 # Abstract - StackScript description
 
-# SCRIPTID:
+# SCRIPTID: 650609
 
 : << ABSTRACT
 HarleyPig's Arch Linux
@@ -29,7 +29,8 @@ Setup hostname, locale, timezone, reflector (including hook for upgrades), ntp
 Update system to latest
 Setup firewall (ufw), fail2ban, user, sudoers, sshd
 Tweak system settings
-Install basic packages: git pacutils aconfmgr docker
+Installs packages:
+  git pacutils aconfmgr docker mlocate htop tmux unzip
 ABSTRACT
 
 #############################################################################
@@ -132,4 +133,10 @@ systemd-boot-pacman-hook
   pacman -S docker
   systemctl enable docker
   systemctl start docker
+
+  #############################################################################
+  hr 'Install packages I want every time ...'
+
+  pacman -S --noconfirm mlocate htop tmux unzip task
+
 } 2>&1 | tee $LOGFILE
