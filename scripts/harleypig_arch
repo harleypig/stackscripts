@@ -123,14 +123,14 @@ EOF
 
   #############################################################################
   hr 'Dont forget to add maintenance hooks:
-pacman-cache-hooks
+pacman-cache-hooks 
 systemd-boot-pacman-hook
 '
 
   #############################################################################
   hr 'Install and start docker ...'
 
-  pacman -S docker
+  pacman -S docker --noconfirm
   systemctl enable docker
   systemctl start docker
 
