@@ -1,0 +1,105 @@
+#!/bin/bash
+
+# Stolen and massaged from https://www.linode.com/stackscripts/view/12580
+# Also stole some interesting stuff from stackscript 12938.
+
+#############################################################################
+# Variables from user input.
+
+# <UDF name="username" label="Unprivileged user name" example="This will be the user who will be able to SSH into the server." />
+# <UDF name="userpass" label="Unprivileged user password" />
+# <UDF name="userpubkey" label="Public key for the user" default="" example="Should look like 'ssh-rsa AAABBB1x2y3z...'" />
+# <UDF name="altpubkey" label="Pulls your public key from github using your github username https://github.com/$USERNAME.keys" />
+# <UDF name="nopass" label="Disable password authentication for SSH?" oneof="Yes,No" default="Yes" />
+# <UDF name="sshport" label="SSH port" default="22" example="It is a good idea to set this to something other than the default of 22."/>
+
+#############################################################################
+# Abstract - StackScript description
+
+# SCRIPTID: 71751
+
+: << ABSTRACT
+Barebones Arch Linux
+
+For testing purposes, use at your own risk.
+
+WARNING: No firewall is setup!
+
+Setup locale, timezone
+Update system to latest
+Setup user, sudoers, sshd
+Tweak system settings
+Install basic packages: reflector, git aconfmgr
+ABSTRACT
+
+#############################################################################
+# Source utility script
+
+source <ssinclude StackScriptID="335947">
+
+#############################################################################
+LOGFILE='/root/minimal_arch_stackscript.log'
+
+{
+  hr 'Starting barebones installation for Arch Linux on Linode ...'
+
+  #############################################################################
+  hr 'Set up the hostname ...'
+
+  hostnamectl set-hostname "$HOSTNAME"
+
+  #############################################################################
+  hr 'Set the locale ...'
+
+  localectl set-locale LANG='en_US.UTF-8 UTF-8'
+  locale-gen
+
+  #############################################################################
+  hr 'Set up the correct TZ (correct being my timezone) ...'
+
+  timedatectl set-timezone 'MST7MDT'
+
+  #############################################################################
+  hr 'Update and optimize mirrorlist for pacman ...'
+
+  setup_reflector
+
+  #############################################################################
+  hr 'Update system ...'
+
+  pacman -Syyu --noconfirm
+
+  #############################################################################
+  hr 'Setting up sudoers so wheel group can sudo ...'
+
+  setup_sudoers
+
+  #############################################################################
+  hr 'Setting up an non-privileged user and sudo ...'
+
+  useradd -m -g users -G wheel "$USERNAME"
+  passwd "$USERNAME" << EOF
+$USERPASS
+$USERPASS
+EOF
+
+  #############################################################################
+  hr 'Setting up sshd ...'
+
+  setup_ssh
+
+  #############################################################################
+  hr 'Tweak system settings ...'
+
+  system_tweak
+
+  #############################################################################
+  hr 'Installing basic packages ...'
+
+  pacman -Sy --noconfirm git
+
+  #############################################################################
+  hr 'Install aconfmgr ...'
+
+  setup_aconfmgr
+} 2>&1 | tee $LOGFILE
