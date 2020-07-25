@@ -30,7 +30,7 @@ Update system to latest
 Setup firewall (ufw), fail2ban, user, sudoers, sshd
 Tweak system settings
 Installs packages:
-  git pacutils aconfmgr docker mlocate htop tmux unzip
+  binutils git pacutils aconfmgr docker mlocate htop tmux unzip
 ABSTRACT
 
 #############################################################################
@@ -137,6 +137,6 @@ systemd-boot-pacman-hook
   #############################################################################
   hr 'Install packages I want every time ...'
 
-  pacman -S --noconfirm mlocate htop tmux unzip task
+  pacman -S --noconfirm mlocate htop tmux unzip task binutils
 
 } 2>&1 | tee $LOGFILE
