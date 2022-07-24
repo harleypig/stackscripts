@@ -33,7 +33,8 @@ ABSTRACT
 #############################################################################
 # Source utility script
 
-source <ssinclude StackScriptID="335947">
+# source bash_arch_library
+source '<ssinclude StackScriptID="335947">'
 
 #############################################################################
 LOGFILE='/root/minimal_arch_stackscript.log'

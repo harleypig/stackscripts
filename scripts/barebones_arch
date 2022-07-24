@@ -35,7 +35,8 @@ ABSTRACT
 #############################################################################
 # Source utility script
 
-source <ssinclude StackScriptID="335947">
+# Source arch_bash_library
+source '<ssinclude StackScriptID="335947">'
 
 #############################################################################
 LOGFILE='/root/minimal_arch_stackscript.log'

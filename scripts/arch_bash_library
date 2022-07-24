@@ -38,7 +38,7 @@ hr() {
 # Expects: Nothing
 # Returns: Result of sysctl --system call
 
-function system_tweak() {
+system_tweak() {
   cat << EOT > /etc/sysctl.conf
 net.core.default_qdisc=fq
 net.ipv4.tcp_congestion_control=bbr
@@ -65,7 +65,7 @@ EOT
 # Expects: USERNAME to be set
 # Returns: success in all cases.
 
-function setup_sudoers() {
+setup_sudoers() {
   sed -i 's/# %wheel ALL=(ALL) ALL/%wheel ALL=(ALL) ALL/' /etc/sudoers
 
   # Don't want to put up with that lecture when I don't have to.
@@ -83,7 +83,7 @@ function setup_sudoers() {
 # Expects: the following variables to have already been setup.
 #          USERNAME USERPUBKEY (optional) ALTPUBKEY (optional)
 
-function setup_ssh() {
+setup_ssh() {
   sed -i 's/^[# ]*PermitRootLogin \(yes\|no\)/PermitRootLogin no/' /etc/ssh/sshd_config
   #sed -i "s/^[# ]*Port [0-9]\+/Port $SSHPORT/" /etc/ssh/sshd_config
   sed -i 's/^[# ]*Protocol \([0-9],\?\)\+/Protocol 2/' /etc/ssh/sshd_config
@@ -124,7 +124,7 @@ function setup_ssh() {
 #      https://wiki.archlinux.org/index.php/Fail2ban#Service_hardening
 #      Also configure to my own setup.
 
-function setup_fail2ban() {
+setup_fail2ban() {
   pacman -S --noconfirm fail2ban
 
   systemctl start fail2ban
@@ -135,7 +135,7 @@ function setup_fail2ban() {
 # Expects: nothing
 # Returns: result of timedatectl call.
 
-function setup_ntp() {
+setup_ntp() {
   pacman -S --noconfirm ntp
   systemctl enable ntpd.service
   timedatectl set-ntp 1
@@ -145,7 +145,7 @@ function setup_ntp() {
 # Expects: nothing
 # Returns: result of cat (in this case, always success)
 
-function setup_reflector() {
+setup_reflector() {
   pacman -Sy --noconfirm reflector rsync
   reflector --protocol https --threads 10 --latest 10 --sort rate --save /etc/pacman.d/mirrorlist
 
@@ -171,7 +171,7 @@ EOF
 # Expects: nothing
 # Returns: result of ufw call
 
-function setup_ufw() {
+setup_ufw() {
   pacman -S --noconfirm ufw ufw-extras
 
   hr 'Enable and start ufw'
@@ -191,7 +191,7 @@ function setup_ufw() {
 # Expects: nothing
 # Returns: success
 
-function setup_aconfmgr() {
+setup_aconfmgr() {
   git clone https://github.com/CyberShadow/aconfmgr.git
 
   cd aconfmgr || {
@@ -204,6 +204,29 @@ function setup_aconfmgr() {
   install -D -m644 -t "/usr/share/doc/aconfmgr" "README.md"
   install -D -m644 -t "/usr/share/man/man1" "aconfmgr.1"
   #install -D -m644 -t "/usr/share/licenses/aconfmgr" license.txt
+
+  return 0
+}
+
+#############################################################################
+# Expects: nothing
+# Returns: success
+
+install_trizen() {
+  cd /tmp || {
+    echo "Unable to change to /tmp dir"
+    return 1
+  }
+
+  git clone https://aur.archlinux.org/trizen.git
+
+  cd trizen || {
+    echo "Unable to clone trizen package"
+    return 1
+  }
+
+  pacman -S fakeroot --noconfirm
+  makepkg -si --noconfirm
 
   return 0
 }

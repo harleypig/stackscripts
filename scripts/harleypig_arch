@@ -36,7 +36,8 @@ ABSTRACT
 #############################################################################
 # Source utility script
 
-source <ssinclude StackScriptID="335947">
+# Source arch_bash_library
+source '<ssinclude StackScriptID="335947">'
 
 #############################################################################
 LOGFILE='/root/minimal_arch_stackscript.log'
@@ -117,13 +118,18 @@ EOF
   pacman -Sy --noconfirm git pacutils
 
   #############################################################################
+  hr 'Install trizen ...'
+
+  install_trizen
+
+  #############################################################################
   hr 'Install aconfmgr ...'
 
   setup_aconfmgr
 
   #############################################################################
   hr 'Dont forget to add maintenance hooks:
-pacman-cache-hooks 
+pacman-cache-hooks
 systemd-boot-pacman-hook
 '
 
