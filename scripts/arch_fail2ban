@@ -1,0 +1,117 @@
+#!/bin/bash
+
+#############################################################################
+# I'm not going to use 'set -euo pipefail' because it's not needed in
+# a stackscript.
+
+# Resources:
+#  https://github.com/fail2ban/fail2ban
+#  https://wiki.archlinux.org/index.php/Fail2ban
+#  https://github.com/dani-garcia/vaultwarden/wiki/Fail2Ban-Setup
+
+#############################################################################
+# Abstract - StackScript description
+
+# SCRIPTID:
+
+: << ABSTRACT
+This does nothing by itself. This is a library that will install and configure
+fail2ban on arch linux. It is used by other scripts that I am using in my
+linode stackscripts. You are welcome to use it.
+
+This script is included in the arch_bash_library script. Or you can source
+this in your arch stackscript to use it.
+ABSTRACT
+
+#############################################################################
+#----------------------------------------------------------------------------
+
+install_fail2ban() {
+  pacman -S --noconfirm fail2ban || return 1
+
+  mkdir -p /var/log/fail2ban || return 1
+  mkdir -p /etc/fail2ban/jail.d || return 1
+}
+
+#----------------------------------------------------------------------------
+start_fail2ban() {
+  systemctl enable --now fail2ban || return 1
+}
+
+#----------------------------------------------------------------------------
+restart_fail2ban() {
+  systemctl daemon-reload || return 1
+  systemctl restart fail2ban || return 1
+}
+
+#----------------------------------------------------------------------------
+systemd_fail2ban() {
+
+  # See https://wiki.archlinux.org/title/Fail2ban#Service_hardening
+  #
+  # The CapabilityBoundingSet parameters CAP_DAC_READ_SEARCH will allow
+  # Fail2ban full read access to every directory and file. CAP_NET_ADMIN and
+  # CAP_NET_RAW allow Fail2ban to operate on any firewall that has
+  # command-line shell interface. See capabilities(7) for more info.
+  #
+  # By using ProtectSystem=strict the filesystem hierarchy will only be
+  # read-only, ReadWritePaths allows Fail2ban to have write access on required
+  # paths.
+
+  cat << EOF > /etc/systemd/system/fail2ban.service.d/override.conf
+[Service]
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectHome=read-only
+ProtectSystem=strict
+ReadWritePaths=-/var/run/fail2ban
+ReadWritePaths=-/var/lib/fail2ban
+ReadWritePaths=-/var/log/fail2ban
+ReadWritePaths=-/var/spool/postfix/maildrop
+ReadWritePaths=/run/xtables.lock
+CapabilityBoundingSet=CAP_AUDIT_READ CAP_DAC_READ_SEARCH CAP_NET_ADMIN CAP_NET_RAW
+EOF
+
+  cat << EOF > /etc/fail2ban/fail2ban.local
+[Definition]
+logtarget = /var/log/fail2ban.log
+EOF
+
+  cat << EOF /etc/fail2ban/jail.local
+# Refer to base jail.conf for default settings and explanations.
+
+[DEFAULT]
+banaction = ufw
+bantime = 1w
+bantime.increment = true
+bantime.overalljails = true
+bantime.rndtime = 3000
+ignoreip = 127.0.0.1/8 ::1
+ignoreself = true
+EOF
+}
+
+#----------------------------------------------------------------------------
+sshd_fail2ban() {
+  # See https://wiki.archlinux.org/title/Fail2ban#Custom_SSH_jail
+
+  cat <<EOF > /etc/fail2ban/jail.d/sshd.conf
+[sshd]
+enabled   = true
+filter    = sshd
+backend   = systemd
+maxretry  = 5
+findtime  = 1d
+bantime   = 1w
+ignoreip  = 127.0.0.1/8
+EOF
+}
+
+#############################################################################
+#----------------------------------------------------------------------------
+
+install_fail2ban
+start_fail2ban
+systemd_fail2ban
+sshd_fail2ban
+restart_fail2ban
